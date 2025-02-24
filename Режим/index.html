@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Time & Money Tracker</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: url('default-bg.jpg') no-repeat center center fixed;
+            background-size: cover;
+            transition: background 0.5s ease-in-out;
+        }
+        .container {
+            max-width: 600px;
+            margin: auto;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
+            animation: fadeIn 1s ease-in-out;
+        }
+        input, button {
+            width: 100%;
+            margin: 5px 0;
+            padding: 10px;
+            border-radius: 5px;
+            border: none;
+        }
+        button {
+            background: #28a745;
+            color: white;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background: #218838;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Time & Money Tracker</h2>
+        
+        <button id="addOperation">Добавить операцию</button>
+        <button id="addExpense">Добавить расход</button>
+        <button id="changeBackground">Изменить фон (URL)</button>
+        <input type="file" id="uploadBackground" accept="image/*">
+        
+        <h3>Операции</h3>
+        <ul id="operationsList"></ul>
+        
+        <h3>Расходы</h3>
+        <ul id="expensesList"></ul>
+        
+        <h3>Итог</h3>
+        <p>Общий расход: <span id="totalExpense">0</span> сум</p>
+        <p>Общее время операций: <span id="totalTime">0</span></p>
+    </div>
+
+    <script>
+        let operations = JSON.parse(localStorage.getItem('operations')) || [];
+        let expenses = JSON.parse(localStorage.getItem('expenses')) || [];
+        const PASSWORD = "0520";
+
+        document.getElementById("addOperation").addEventListener("click", () => {
+            let category = prompt("Введите название операции:");
+            if (!category) return;
+            let startTime = new Date();
+            let operation = { category, startTime: startTime.toISOString(), endTime: null, duration: null, amount: 0 };
+            operations.push(operation);
+            localStorage.setItem("operations", JSON.stringify(operations));
+            updateUI();
+        });
+
+        function finishOperation(index) {
+            let operation = operations[index];
+            let endTime = new Date();
+            let durationMs = endTime - new Date(operation.startTime);
+            let duration = durationMs >= 60000 ? Math.round(durationMs / 60000) + " мин" : durationMs >= 1000 ? Math.round(durationMs / 1000) + " сек" : "менее секунды";
+            let amount = parseFloat(prompt("Сколько потрачено на операцию?")) || 0;
+            operation.endTime = endTime.toISOString();
+            operation.duration = duration;
+            operation.amount = amount;
+            expenses.push({ category: operation.category, amount, time: endTime.toISOString() });
+            localStorage.setItem("operations", JSON.stringify(operations));
+            localStorage.setItem("expenses", JSON.stringify(expenses));
+            updateUI();
+        }
+
+        function deleteOperation(index) {
+            let password = prompt("Введите пароль для удаления:");
+            if (password !== PASSWORD) return alert("Неверный пароль!");
+            operations.splice(index, 1);
+            localStorage.setItem("operations", JSON.stringify(operations));
+            updateUI();
+        }
+
+        function deleteExpense(index) {
+            let password = prompt("Введите пароль для удаления:");
+            if (password !== PASSWORD) return alert("Неверный пароль!");
+            expenses.splice(index, 1);
+            localStorage.setItem("expenses", JSON.stringify(expenses));
+            updateUI();
+        }
+
+        document.getElementById("addExpense").addEventListener("click", () => {
+            let category = prompt("На что потрачены деньги?");
+            if (!category) return;
+            let amount = parseFloat(prompt("Введите сумму расхода:"));
+            if (isNaN(amount) || amount <= 0) return alert("Неверная сумма!");
+            let time = new Date().toISOString();
+            expenses.push({ category, amount, time });
+            localStorage.setItem("expenses", JSON.stringify(expenses));
+            updateUI();
+        });
+
+        function updateUI() {
+            document.getElementById("operationsList").innerHTML = operations.map((op, index) => `
+                <li><strong>${op.category}</strong><br>
+                Начало: ${new Date(op.startTime).toLocaleString()}<br>
+                ${op.endTime ? `Конец: ${new Date(op.endTime).toLocaleString()}<br>Всего: ${op.duration}<br>Потрачено: ${op.amount} сум` : `<button onclick="finishOperation(${index})">Завершить</button>`}
+                <button onclick="deleteOperation(${index})">Удалить</button></li>
+            `).join('');
+            
+            document.getElementById("expensesList").innerHTML = expenses.map((exp, index) => `
+                <li>${exp.category}: ${exp.amount} сум (Добавлено: ${new Date(exp.time).toLocaleString()})
+                <button onclick="deleteExpense(${index})">Удалить</button></li>
+            `).join('');
+            
+            document.getElementById("totalExpense").textContent = expenses.reduce((a, b) => a + b.amount, 0);
+            document.getElementById("totalTime").textContent = operations.reduce((a, b) => a + (typeof b.duration === 'string' ? parseInt(b.duration) || 0 : 0), 0) + " мин";
+        }
+        
+        document.getElementById("changeBackground").addEventListener("click", () => {
+            let newBg = prompt("Введите URL нового фона:");
+            if (newBg) {
+                document.body.style.backgroundImage = `url('${newBg}')`;
+            }
+        });
+        
+        document.getElementById("uploadBackground").addEventListener("change", (event) => {
+            let file = event.target.files[0];
+            if (file) {
+                let reader = new FileReader();
+                reader.onload = (e) => {
+                    document.body.style.backgroundImage = `url('${e.target.result}')`;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+        
+        updateUI();
+    </script>
+</body>
+</html>
